@@ -1,3 +1,4 @@
+use std::env;
 use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
@@ -5,6 +6,10 @@ use std::io::stdout;
 use std::io::{self, Seek, SeekFrom, Write};
 use std::str::FromStr;
 use std::vec;
+
+pub mod cmd;
+
+use cmd::Command;
 
 use serde::{Deserialize, Serialize};
 
@@ -59,8 +64,10 @@ pub type Error = Box<dyn std::error::Error>;
     1. Append and read KV from the Flat File ✅
         1.1. Do this with base CLI commands: SET and GET (🛠️ in progress..)
     2. Keep tracking of data with KV offset & len saving to separate file
+        2.1. Caching index data in memory
     3. Impelment CRUD with Append-Only Strategy (incl delete)
-    4. Implement reading commands from CLI with the running program. TODO: interface (TCP)?
+
+
     5. Concurrent connections and multiple read/write
     6. Implement compaction (removing stale records) with the running program
 */
@@ -105,6 +112,28 @@ pub type Error = Box<dyn std::error::Error>;
     specific performance and reliability criteria.
 */
 
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+fn main() -> Result<(), Error> {
+    let cli_args: Vec<String> = env::args().collect();
+
+    match Command::from_args(cli_args) {
+        Ok(command) => {
+            dbg!(command);
+        }
+        Err(err) => {
+            eprintln!("Error reading arguments: {}", err);
+        }
+    };
+
+    // let kv_bytes = KVPair::read_bytes(32, 32);
+
+    // let string = String::from_utf8(kv_bytes.unwrap()).unwrap();
+    // let deserialized: KVPair = serde_json::from_str(&string).unwrap();
+
+    Ok(())
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct KVPair {
     key: String,
@@ -147,76 +176,5 @@ impl KVPair {
         file.read_exact(&mut buffer)?;
 
         Ok(buffer)
-    }
-}
-
-fn main() {
-    // let cmd = read_command();
-
-    let kv_bytes = KVPair::read_bytes(32, 32);
-
-    let string = String::from_utf8(kv_bytes.unwrap()).unwrap();
-    let deserialized: KVPair = serde_json::from_str(&string).unwrap();
-
-    dbg!(deserialized);
-
-    // append_to_file();
-}
-
-// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-
-#[derive(Debug)]
-enum Command {
-    SET,
-    GET,
-}
-
-impl FromStr for Command {
-    type Err = ();
-
-    fn from_str(command_str: &str) -> Result<Command, ()> {
-        match command_str {
-            "GET" => Ok(Command::GET),
-            "SET" => Ok(Command::SET),
-            _ => Err(()),
-        }
-    }
-}
-
-impl fmt::Display for Command {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Command::GET => write!(f, "GET"),
-            Command::SET => write!(f, "SET"),
-        }
-    }
-}
-
-fn read_command() -> Result<Command, Error> {
-    use std::env;
-
-    let args: Vec<String> = env::args().collect();
-    let cmd = args
-        .get(1)
-        .ok_or("No command provided")
-        // .and_then(|command_string| Command::from_str(command_string))
-        // TODO: what is map_err and why and_then(|command_string| Command::from_str(command_string)) doesn't work?
-        .and_then(|command_string| {
-            Command::from_str(command_string).map_err(|_| "Invalid command")
-        });
-
-    Ok(Command::GET)
-}
-
-fn run_program_loop() {
-    loop {
-        let mut buf = String::new();
-
-        match io::stdin().read_line(&mut buf) {
-            Ok(s) => println!("Foo {:?}", buf.trim()),
-            Err(e) => println!("Error"),
-        }
-
-        stdout().flush().unwrap();
     }
 }
