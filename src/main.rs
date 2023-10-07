@@ -1,17 +1,13 @@
 use std::env;
-use std::fmt;
-use std::fs::{File, OpenOptions};
-use std::io::prelude::*;
-use std::io::stdout;
-use std::io::{self, Seek, SeekFrom, Write};
-use std::str::FromStr;
-use std::vec;
-
-pub mod cmd;
-
-use cmd::Command;
+use std::io;
 
 use serde::{Deserialize, Serialize};
+
+pub mod cmd;
+pub mod file_manager;
+
+use cmd::Command;
+use file_manager::{FileManager, FileRecordInfo};
 
 static PRIMARY_STORE_FILENAME: &'static str = "store.dat";
 
@@ -121,17 +117,38 @@ fn main() -> Result<(), Error> {
 
     let cli_args: Vec<String> = env::args().collect();
 
+    // TODO: how to handle all that outside from main?
     match Command::from_args(cli_args) {
         Ok(command) => {
             match command {
                 Command::GET(key) => {
-                    //
+                    // TODO: read record info from index
+
+                    let mock_info = FileRecordInfo {
+                        offset: 128,
+                        len: 30,
+                    };
+
+                    match file_manager.read_record_bytes(&mock_info) {
+                        Ok(bytes) => {
+                            let kv = KVPair::read_from_bytes(bytes);
+
+                            dbg!(kv);
+                        }
+                        Err(err) => {
+                            println!("Could not read record");
+                            dbg!(err);
+                        }
+                    };
+
+                    // dbg!(record_bytes);
                 }
                 Command::SET(key, value) => {
                     let kv_pair = KVPair::new(key, value);
 
-                    match file_manager.append_record(kv_pair.serialize()) {
+                    match file_manager.append_serialized_record(kv_pair.serialize()) {
                         Ok(res) => {
+                            // TODO: set record info to index
                             dbg!(res);
                         }
                         Err(err) => {
@@ -146,45 +163,7 @@ fn main() -> Result<(), Error> {
         }
     };
 
-    // let kv_bytes = KVPair::read_bytes(32, 32);
-
-    // let string = String::from_utf8(kv_bytes.unwrap()).unwrap();
-    // let deserialized: KVPair = serde_json::from_str(&string).unwrap();
-
     Ok(())
-}
-
-pub struct FileManager {
-    pub filename: &'static str,
-}
-
-#[derive(Debug)]
-pub struct FileAppendInfo {
-    pub record_offset: u64,
-    pub record_len: u64,
-}
-
-impl FileManager {
-    pub fn new(filename: &'static str) -> Self {
-        Self { filename }
-    }
-
-    pub fn append_record(&self, record: String) -> std::io::Result<FileAppendInfo> {
-        // TODO: create file if not found
-        let mut file = OpenOptions::new().append(true).open(&self.filename)?;
-
-        let record_offset = file.metadata()?.len();
-        let record_len = record.len() as u64;
-
-        let append_info = FileAppendInfo {
-            record_offset,
-            record_len,
-        };
-
-        file.write_all(record.as_bytes())?;
-
-        Ok(append_info)
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -210,36 +189,11 @@ impl KVPair {
         }
     }
 
-    // pub fn append_to_file(&self) -> std::io::Result<()> {
-    //     let serialized_data = serde_json::to_string(&self)?;
+    pub fn read_from_bytes(bytes: Vec<u8>) -> Result<KVPair, Error> {
+        let record_str = String::from_utf8(bytes)?;
+        let kv_pair: Result<KVPair, serde_json::Error> = serde_json::from_str(&record_str);
 
-    //     let mut file = OpenOptions::new().append(true).open("store.dat")?;
-
-    //     let record_offset = file.metadata()?.len();
-    //     let record_len = serialized_data.len();
-
-    //     println!("record_offset {:?}", record_offset);
-    //     println!("record_len {:?}", record_len);
-
-    //     file.write_all(serialized_data.as_bytes())?;
-
-    //     Ok(())
-    // }
-
-    pub fn read_bytes(offset: u64, len: usize) -> std::io::Result<Vec<u8>> {
-        let mut file = File::open("store.dat")?;
-
-        /*
-         * Set cursor for the KV's offset
-         * This is done so that the subsequent read operation will begin reading data from that exact position.
-         */
-        file.seek(SeekFrom::Start(offset))?;
-
-        // Create a buffer and populate buffer with data slice
-        let mut buffer = vec![0; len];
-        file.read_exact(&mut buffer)?;
-
-        Ok(buffer)
+        kv_pair.map_err(|err| Box::new(err) as Error)
     }
 }
 
