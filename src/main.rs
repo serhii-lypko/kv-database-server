@@ -13,6 +13,8 @@ use cmd::Command;
 
 use serde::{Deserialize, Serialize};
 
+static PRIMARY_STORE_FILENAME: &'static str = "store.dat";
+
 /*
     std::error::Error is a trait, not a concrete type. When you return a Result from a
     function and you want to use any type that implements the Error trait as the error type
@@ -115,11 +117,29 @@ pub type Error = Box<dyn std::error::Error>;
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 fn main() -> Result<(), Error> {
+    let file_manager = FileManager::new(PRIMARY_STORE_FILENAME);
+
     let cli_args: Vec<String> = env::args().collect();
 
     match Command::from_args(cli_args) {
         Ok(command) => {
-            dbg!(command);
+            match command {
+                Command::GET(key) => {
+                    //
+                }
+                Command::SET(key, value) => {
+                    let kv_pair = KVPair::new(key, value);
+
+                    match file_manager.append_record(kv_pair.serialize()) {
+                        Ok(res) => {
+                            dbg!(res);
+                        }
+                        Err(err) => {
+                            dbg!(err);
+                        }
+                    }
+                }
+            };
         }
         Err(err) => {
             eprintln!("Error reading arguments: {}", err);
@@ -134,33 +154,77 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
+pub struct FileManager {
+    pub filename: &'static str,
+}
+
+#[derive(Debug)]
+pub struct FileAppendInfo {
+    pub record_offset: u64,
+    pub record_len: u64,
+}
+
+impl FileManager {
+    pub fn new(filename: &'static str) -> Self {
+        Self { filename }
+    }
+
+    pub fn append_record(&self, record: String) -> std::io::Result<FileAppendInfo> {
+        // TODO: create file if not found
+        let mut file = OpenOptions::new().append(true).open(&self.filename)?;
+
+        let record_offset = file.metadata()?.len();
+        let record_len = record.len() as u64;
+
+        let append_info = FileAppendInfo {
+            record_offset,
+            record_len,
+        };
+
+        file.write_all(record.as_bytes())?;
+
+        Ok(append_info)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
-struct KVPair {
+pub struct KVPair {
     key: String,
     value: String,
 }
 
 impl KVPair {
-    pub fn append_to_file() -> std::io::Result<()> {
-        let pair = KVPair {
-            key: "name".to_string(),
-            value: "Tom".to_string(),
-        };
-
-        let serialized_data = serde_json::to_string(&pair)?;
-
-        let mut file = OpenOptions::new().append(true).open("store.dat")?;
-
-        let record_offset = file.metadata()?.len();
-        let record_len = serialized_data.len();
-
-        println!("record_offset {:?}", record_offset);
-        println!("record_len {:?}", record_len);
-
-        file.write_all(serialized_data.as_bytes())?;
-
-        Ok(())
+    pub fn new(key: String, value: String) -> Self {
+        KVPair { key, value }
     }
+
+    pub fn serialize(&self) -> String {
+        let serialized_data = serde_json::to_string(&self);
+
+        match serialized_data {
+            Ok(serialized_data) => serialized_data,
+            Err(_) => {
+                // TODO: handle more gracefully
+                panic!("Could not serialize the data");
+            }
+        }
+    }
+
+    // pub fn append_to_file(&self) -> std::io::Result<()> {
+    //     let serialized_data = serde_json::to_string(&self)?;
+
+    //     let mut file = OpenOptions::new().append(true).open("store.dat")?;
+
+    //     let record_offset = file.metadata()?.len();
+    //     let record_len = serialized_data.len();
+
+    //     println!("record_offset {:?}", record_offset);
+    //     println!("record_len {:?}", record_len);
+
+    //     file.write_all(serialized_data.as_bytes())?;
+
+    //     Ok(())
+    // }
 
     pub fn read_bytes(offset: u64, len: usize) -> std::io::Result<Vec<u8>> {
         let mut file = File::open("store.dat")?;
@@ -176,5 +240,20 @@ impl KVPair {
         file.read_exact(&mut buffer)?;
 
         Ok(buffer)
+    }
+}
+
+// TODO: not sure if it's needed
+impl TryFrom<Command> for KVPair {
+    type Error = Error;
+
+    fn try_from(command: Command) -> Result<Self, Self::Error> {
+        match command {
+            Command::SET(key, value) => Ok(KVPair { key, value }),
+            cmd => Err(Box::new(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Conversion from {:?} command to KVPair is impossible", cmd),
+            ))),
+        }
     }
 }
