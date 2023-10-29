@@ -9,9 +9,8 @@ async fn main() -> Result<(), Error> {
     // let ping_res = client.ping().await?;
     // println!("Ping response: {}", ping_res);
 
-    // client.get("hello").await?;
-
-    let set_res = client.set("hello", "world".into()).await?;
+    // let set_res = client.set("james", "james val".into()).await?;
+    let get_res = client.get("foo").await?;
 
     Ok(())
 }

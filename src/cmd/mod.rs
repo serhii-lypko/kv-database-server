@@ -3,6 +3,7 @@ use bytes::Bytes;
 mod parse;
 
 use crate::connection::Connection;
+use crate::db::Db;
 use crate::frame::Frame;
 use parse::{Parse, ParseError};
 
@@ -31,12 +32,12 @@ impl Command {
         Ok(command)
     }
 
-    pub(crate) async fn apply(self, conn: &mut Connection) -> Result<(), crate::Error> {
+    pub(crate) async fn apply(self, conn: &mut Connection, db: &Db) -> Result<(), crate::Error> {
         use Command::*;
 
         match self {
-            // Get(cmd) => cmd.apply(conn).await,
-            Set(cmd) => cmd.apply(conn).await,
+            Get(cmd) => cmd.apply(conn, db).await,
+            Set(cmd) => cmd.apply(conn, db).await,
             Ping(cmd) => cmd.apply(conn).await,
             _ => todo!(),
         }
@@ -103,10 +104,16 @@ impl Get {
     }
 
     pub(crate) fn parse_frames(parse: &mut Parse) -> Result<Get, crate::Error> {
-        dbg!(&parse);
+        // dbg!(&parse);
         let key = parse.next_string()?;
 
         Ok(Get { key })
+    }
+
+    pub async fn apply(self, conn: &mut Connection, db: &Db) -> Result<(), crate::Error> {
+        let res = db.get(self.key.as_str());
+
+        Ok(())
     }
 }
 
@@ -142,9 +149,11 @@ impl Set {
         Ok(Set { key, value })
     }
 
-    pub async fn apply(self, conn: &mut Connection) -> Result<(), crate::Error> {
-        println!("About to apply SET cmd");
-        dbg!(self);
+    pub async fn apply(self, conn: &mut Connection, db: &Db) -> Result<(), crate::Error> {
+        // 1. apply command to db
+        // 2. write response (OK) to socket
+
+        db.set(self.key, self.value);
 
         Ok(())
     }

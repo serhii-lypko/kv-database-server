@@ -64,7 +64,8 @@ impl Frame {
         }
     }
 
-    // "*  __  1\r\n  __  $4\r\n  __  ping\r\n"
+    // PING: "*  __  1\r\n  __  $4\r\n  __  ping\r\n"
+    // SET: "*  __  3\r\n  __  +set\r\n  __  +hello\r\n  __  $5\r\  __  nworld\r\n"
 
     pub fn parse(src: &mut Cursor<&[u8]>) -> Result<Frame, Error> {
         match get_descriptor(src)? {

@@ -1,1 +1,3 @@
-{"key":"name","value":"ric"}{"key":"name","value":"james"}{"key":"name","value":"brian"}
+{"key":"abc","value":"abc val 1","timestamp":1698564948}
+{"key":"foo","value":"foo val","timestamp":1698564966}
+{"key":"james","value":"james val","timestamp":1698564973}

@@ -1,7 +1,7 @@
 pub mod client;
 pub mod cmd;
 pub mod connection;
-pub mod file_manager;
+pub mod db;
 pub mod frame;
 pub mod server;
 
@@ -26,21 +26,25 @@ pub type Error = Box<dyn std::error::Error>;
     2. Basic TCP server
         - Basic backbone of the client-server ✅
         - Passing via TCP stream simple string and digit frames as KV value ✅
-    3. Apply commands to database
-        - Append only SET <- (🛠️ in progress..)
-    4. In-memory indexing
-        - Initiate hash-map in-memory index
-        - Apply GET on database via index
-    5. CLI commands interation (running loop on the client)
+    3. Apply commands to database ✅
+        - Append only SET ✅
+    4. In-memory indexing ✅
+        - Initiate hash-map in-memory index ✅
+        - Apply GET on database via index ✅
+    5. CLI commands integration (running loop on the client)
     6. CRUD
         - Update
         - Delete
     7. Implement simple compaction
+    8. Simple tests
+
+    TODO: structs & implementations ordering and conistency
 
 
     Version 0.2.0
-    - Tests for above functional
+    - More advanced tests
     - Concurrent read-write
+    - Segment file compaction
     - Error handling with anyhow?
     - Refactor CLI with clap crate, rename & refactor transport_cmd module
     - Timeout Mechanism for connection keep alive

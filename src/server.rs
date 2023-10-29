@@ -1,24 +1,27 @@
 use std::future::Future;
 
-use bytes::{Buf, BytesMut};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
 use tokio::net::{TcpListener, TcpStream};
 
 use crate::cmd::Command;
 use crate::connection::Connection;
+use crate::db::{Db, DbHolder};
 
-#[derive(Debug)]
 struct Listener {
     listener: TcpListener,
+    db_holder: DbHolder,
 }
 
-#[derive(Debug)]
 struct Handler {
     connection: Connection,
+    db: Db,
 }
 
 pub async fn run(listener: TcpListener, shutdown: impl Future) {
-    let mut server = Listener { listener };
+    let db_holder = DbHolder::new();
+    let mut server = Listener {
+        listener,
+        db_holder,
+    };
 
     // select gives running task an opportunity to finish their execution
     tokio::select! {
@@ -53,6 +56,7 @@ impl Listener {
 
             let mut handler = Handler {
                 connection: Connection::new(socket),
+                db: self.db_holder.db(),
             };
 
             tokio::spawn(async move {
@@ -89,7 +93,7 @@ impl Handler {
 
             let cmd = Command::from_frame(frame)?;
 
-            cmd.apply(&mut self.connection).await?;
+            cmd.apply(&mut self.connection, &self.db).await?;
         }
     }
 }
