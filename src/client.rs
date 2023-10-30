@@ -28,22 +28,34 @@ impl Client {
         Err("Internal error".into())
     }
 
-    pub async fn get(&mut self, key: &str) -> Result<(), crate::Error> {
+    // NOTE: should return bulk as bytes instead of to-string converting?
+    pub async fn get(&mut self, key: &str) -> Result<String, crate::Error> {
         let frame = Get::new(key).into_frame();
         self.connection.write_frame(&frame).await?;
 
-        // TODO: read response
-
-        Ok(())
+        match self.read_response().await? {
+            Frame::Bulk(bytes) => {
+                let string = String::from_utf8(bytes.to_vec())?;
+                return Ok(string);
+            }
+            Frame::Simple(string) => {
+                return Ok(string);
+            }
+            _ => {
+                todo!()
+            }
+        };
     }
 
-    pub async fn set(&mut self, key: &str, value: Bytes) -> Result<(), crate::Error> {
+    pub async fn set(&mut self, key: &str, value: Bytes) -> Result<String, crate::Error> {
         let frame = Set::new(key, value).into_frame();
         self.connection.write_frame(&frame).await?;
 
-        // TODO: read response
+        if let Frame::Simple(string) = self.read_response().await? {
+            return Ok(string);
+        }
 
-        Ok(())
+        Err("Internal error".into())
     }
 
     async fn read_response(&mut self) -> Result<Frame, crate::Error> {

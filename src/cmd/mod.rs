@@ -14,6 +14,22 @@ pub enum Command {
     Ping(Ping),
 }
 
+#[derive(Debug, Default)]
+pub struct Ping {
+    pub msg: Option<Bytes>,
+}
+
+#[derive(Debug)]
+pub struct Get {
+    pub key: String,
+}
+
+#[derive(Debug)]
+pub struct Set {
+    pub key: String,
+    pub value: Bytes,
+}
+
 impl Command {
     pub fn from_frame(frame: Frame) -> Result<Command, crate::Error> {
         let mut parse = Parse::new(frame)?;
@@ -39,14 +55,8 @@ impl Command {
             Get(cmd) => cmd.apply(conn, db).await,
             Set(cmd) => cmd.apply(conn, db).await,
             Ping(cmd) => cmd.apply(conn).await,
-            _ => todo!(),
         }
     }
-}
-
-#[derive(Debug, Default)]
-pub struct Ping {
-    pub msg: Option<Bytes>,
 }
 
 impl Ping {
@@ -82,11 +92,6 @@ impl Ping {
     }
 }
 
-#[derive(Debug)]
-pub struct Get {
-    pub key: String,
-}
-
 impl Get {
     pub fn new(key: impl ToString) -> Get {
         Get {
@@ -104,23 +109,27 @@ impl Get {
     }
 
     pub(crate) fn parse_frames(parse: &mut Parse) -> Result<Get, crate::Error> {
-        // dbg!(&parse);
         let key = parse.next_string()?;
 
         Ok(Get { key })
     }
 
     pub async fn apply(self, conn: &mut Connection, db: &Db) -> Result<(), crate::Error> {
-        let res = db.get(self.key.as_str());
+        let resp_frame = match db.get(self.key.as_str())? {
+            Some(record) => {
+                let val_bytes = record.get_val_bytes();
+                Frame::Bulk(val_bytes)
+            }
+            None => {
+                // TODO: write Frame::Error(NOT_FOUND)
+                Frame::Simple("Not found".to_string())
+            }
+        };
+
+        conn.write_frame(&resp_frame).await?;
 
         Ok(())
     }
-}
-
-#[derive(Debug)]
-pub struct Set {
-    pub key: String,
-    pub value: Bytes,
 }
 
 impl Set {
@@ -150,10 +159,10 @@ impl Set {
     }
 
     pub async fn apply(self, conn: &mut Connection, db: &Db) -> Result<(), crate::Error> {
-        // 1. apply command to db
-        // 2. write response (OK) to socket
+        db.set(self.key, self.value)?;
 
-        db.set(self.key, self.value);
+        let response = Frame::Simple("OK".to_string());
+        conn.write_frame(&response).await?;
 
         Ok(())
     }

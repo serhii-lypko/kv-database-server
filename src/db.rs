@@ -14,6 +14,31 @@ pub struct DbHolder {
     db: Db,
 }
 
+#[derive(Clone)]
+pub struct Db {
+    index: Arc<Mutex<Index>>,
+    filename: &'static str,
+}
+
+#[derive(Debug)]
+struct Index {
+    records: HashMap<String, IndexRecord>,
+}
+
+#[derive(Debug)]
+pub struct IndexRecord {
+    offset: u64,
+    len: u64,
+    timestamp: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct FileRecord {
+    key: String,
+    value: String, // TODO: how to represent other formats? Bytes?
+    timestamp: u64,
+}
+
 impl DbHolder {
     pub fn new() -> DbHolder {
         DbHolder { db: Db::new() }
@@ -22,12 +47,6 @@ impl DbHolder {
     pub fn db(&self) -> Db {
         self.db.clone()
     }
-}
-
-#[derive(Clone)]
-pub struct Db {
-    index: Arc<Mutex<Index>>,
-    filename: &'static str,
 }
 
 impl Db {
@@ -80,6 +99,28 @@ impl Db {
         Ok(Some(hydrated_index))
     }
 
+    pub fn get(&self, key: &str) -> Result<Option<FileRecord>, crate::Error> {
+        let index_state = self.index.lock().unwrap();
+
+        // TODO: how to handle record not found? what kind of error to return?
+        if let Some(record_info) = index_state.records.get(key) {
+            let mut file = File::open(&self.filename)?;
+
+            file.seek(SeekFrom::Start(record_info.offset.clone()))?;
+
+            let mut buffer = vec![0; record_info.len as usize];
+            file.read_exact(&mut buffer)?;
+
+            let string = String::from_utf8(buffer);
+
+            let record: FileRecord = serde_json::from_str(&string.unwrap().as_str()).unwrap();
+
+            Ok(Some(record))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn set(&self, key: String, value: Bytes) -> Result<(), crate::Error> {
         let mut file = OpenOptions::new().append(true).open(&self.filename)?;
 
@@ -110,52 +151,14 @@ impl Db {
 
         Ok(())
     }
-
-    pub fn get(&self, key: &str) -> Result<(), crate::Error> {
-        let index_state = self.index.lock().unwrap();
-
-        // TODO: how to handle record not found? what kind of error to return?
-        if let Some(record_info) = index_state.records.get(key) {
-            let mut file = File::open(&self.filename)?;
-
-            file.seek(SeekFrom::Start(record_info.offset.clone()))?;
-
-            let mut buffer = vec![0; record_info.len as usize];
-            file.read_exact(&mut buffer)?;
-
-            let string = String::from_utf8(buffer);
-
-            let record: FileRecord = serde_json::from_str(&string.unwrap().as_str()).unwrap();
-
-            dbg!(record);
-        } else {
-            eprintln!("Can't find pair by key");
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-struct Index {
-    records: HashMap<String, IndexRecord>,
-}
-
-#[derive(Debug)]
-pub struct IndexRecord {
-    offset: u64,
-    len: u64,
-    timestamp: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct FileRecord {
-    key: String,
-    value: String, // TODO: how to represent other formats? Bytes?
-    timestamp: u64,
 }
 
 impl FileRecord {
+    pub fn get_val_bytes(&self) -> Bytes {
+        let val = self.value.clone();
+        Bytes::from(val.into_bytes())
+    }
+
     pub fn prepare_for_writing(
         key: String,
         value: Bytes,

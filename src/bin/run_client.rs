@@ -9,8 +9,12 @@ async fn main() -> Result<(), Error> {
     // let ping_res = client.ping().await?;
     // println!("Ping response: {}", ping_res);
 
-    // let set_res = client.set("james", "james val".into()).await?;
-    let get_res = client.get("foo").await?;
+    // TODO: how to pass digits?
+    // let set_res = client.set("cats_number", "many".into()).await?;
+    // dbg!(set_res);
+
+    let get_res = client.get("cats_number").await?;
+    dbg!(get_res);
 
     Ok(())
 }

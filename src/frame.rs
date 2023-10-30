@@ -11,6 +11,9 @@ pub enum Frame {
     Integer(u64),      // :
     Bulk(Bytes),       // $
     Array(Vec<Frame>), // *
+    //
+    // TODO
+    Error(String),
 }
 
 impl Frame {
