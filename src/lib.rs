@@ -7,6 +7,8 @@ pub mod server;
 
 pub type Error = Box<dyn std::error::Error>;
 
+pub const DEFAULT_PORT: u16 = 6379;
+
 /*
     TODO 1.
     Try TDD
@@ -35,13 +37,12 @@ pub type Error = Box<dyn std::error::Error>;
         + Initiate hash-map in-memory index ✅
         + Apply GET on database via index ✅
     - Write response to TCP stream; handle not found for GET ✅
-    - CLI commands integration (clap crate + running loop on the client)
+    - CLI commands integration with clap crate ✅
     - Delete command
-    - Implement simple compaction
+    - Implement simple compaction (without segments)
     - Simple tests
     - Db index as singletone? -> research needed
-
-    TODO: structs & implementations ordering and consistency
+    - Structs & implementations ordering and consistency
 
 
     Version 0.2.0
