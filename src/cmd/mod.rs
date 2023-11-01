@@ -4,7 +4,7 @@ mod parse;
 
 use crate::connection::Connection;
 use crate::db::Db;
-use crate::frame::Frame;
+use crate::frame::{Frame, FrameErrorKind};
 use parse::{Parse, ParseError};
 
 #[derive(Debug)]
@@ -121,18 +121,11 @@ impl Get {
         let resp_frame = match db.get(self.key.as_str())? {
             Some(record) => {
                 let val_bytes = record.get_val_bytes();
-
-                // TODO: Frame::Error(INTERNAL_ERROR)
-                let err_resp = Frame::Simple("Internal error".to_string());
+                let err_resp = Frame::Error(FrameErrorKind::InternalError);
 
                 val_bytes.map_or(err_resp, Frame::Bulk)
             }
-            None => {
-                // TODO: Frame::Error(NOT_FOUND)
-                // Frame::Simple("Not found".to_string())
-
-                Frame::Error("not found 21".to_string())
-            }
+            None => Frame::Error(FrameErrorKind::NotFound),
         };
 
         conn.write_frame(&resp_frame).await?;

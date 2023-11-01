@@ -1,19 +1,30 @@
-use bytes::{Buf, Bytes};
 use std::io::Cursor;
-
-use std::fmt;
 use std::num::TryFromIntError;
+use std::str;
 use std::string::FromUtf8Error;
+use std::{fmt, str::FromStr, str::Utf8Error};
+
+use bytes::{Buf, Bytes};
 
 #[derive(Debug, Clone)]
 pub enum Frame {
-    Simple(String),    // +
-    Integer(u64),      // :
-    Bulk(Bytes),       // $
-    Array(Vec<Frame>), // *
-    //
-    // TODO
-    Error(String),
+    Error(FrameErrorKind), // -
+    Simple(String),        // +
+    Integer(u64),          // :
+    Bulk(Bytes),           // $
+    Array(Vec<Frame>),     // *
+}
+
+#[derive(Debug, Clone)]
+pub enum FrameErrorKind {
+    NotFound,
+    InternalError,
+}
+
+#[derive(Debug)]
+pub enum Error {
+    Incomplete,
+    Other(crate::Error),
 }
 
 impl Frame {
@@ -78,10 +89,15 @@ impl Frame {
     pub fn parse(src: &mut Cursor<&[u8]>) -> Result<Frame, Error> {
         match get_descriptor(src)? {
             b'-' => {
-                let bytes_vec = get_line(src)?.to_vec();
-                let string = String::from_utf8(bytes_vec)?;
+                let bytes = get_line(src)?;
+                let bytes_str = str::from_utf8(bytes)?;
 
-                Ok(Frame::Error(string))
+                let error_kind = match FrameErrorKind::from_str(bytes_str) {
+                    Ok(kind) => kind,
+                    Err(_) => return Err("Invalid string for FrameErrorKind".into()),
+                };
+
+                Ok(Frame::Error(error_kind))
             }
             b'+' => {
                 let bytes_vec = get_line(src)?.to_vec();
@@ -164,10 +180,25 @@ fn skip(src: &mut Cursor<&[u8]>, n: usize) -> Result<(), Error> {
     Ok(())
 }
 
-#[derive(Debug)]
-pub enum Error {
-    Incomplete,
-    Other(crate::Error),
+impl fmt::Display for FrameErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FrameErrorKind::NotFound => write!(f, "not found"),
+            FrameErrorKind::InternalError => write!(f, "internal error"),
+        }
+    }
+}
+
+impl str::FromStr for FrameErrorKind {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "not found" => Ok(FrameErrorKind::NotFound),
+            "internal error" => Ok(FrameErrorKind::InternalError),
+            _ => Err(()),
+        }
+    }
 }
 
 impl From<String> for Error {
@@ -184,6 +215,12 @@ impl From<&str> for Error {
 
 impl From<FromUtf8Error> for Error {
     fn from(_src: FromUtf8Error) -> Error {
+        "protocol error; invalid frame format".into()
+    }
+}
+
+impl From<Utf8Error> for Error {
+    fn from(_src: Utf8Error) -> Error {
         "protocol error; invalid frame format".into()
     }
 }

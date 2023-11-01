@@ -95,9 +95,11 @@ impl Connection {
                 self.stream.write_all(b"\r\n").await?;
             }
             // TODO: error variants as enum?
-            Frame::Error(string) => {
+            Frame::Error(frame_error) => {
                 self.stream.write_u8(b'-').await?;
-                self.stream.write_all(string.as_bytes()).await?;
+                self.stream
+                    .write_all(frame_error.to_string().as_bytes())
+                    .await?;
                 self.stream.write_all(b"\r\n").await?;
             }
             _ => todo!(),
