@@ -9,15 +9,14 @@ use parse::{Parse, ParseError};
 
 #[derive(Debug)]
 pub enum Command {
+    Ping(Ping),
     Get(Get),
     Set(Set),
-    Ping(Ping),
+    Delete(Delete),
 }
 
 #[derive(Debug, Default)]
-pub struct Ping {
-    pub msg: Option<Bytes>,
-}
+pub struct Ping;
 
 #[derive(Debug)]
 pub struct Get {
@@ -30,6 +29,11 @@ pub struct Set {
     pub value: Bytes,
 }
 
+#[derive(Debug)]
+pub struct Delete {
+    pub key: String,
+}
+
 impl Command {
     pub fn from_frame(frame: Frame) -> Result<Command, crate::Error> {
         let mut parse = Parse::new(frame)?;
@@ -37,9 +41,10 @@ impl Command {
         let command_name = parse.next_string()?.to_lowercase();
 
         let command = match command_name.as_str() {
+            "ping" => Command::Ping(Ping::parse_frames(&mut parse)?),
             "get" => Command::Get(Get::parse_frames(&mut parse)?),
             "set" => Command::Set(Set::parse_frames(&mut parse)?),
-            "ping" => Command::Ping(Ping::parse_frames(&mut parse)?),
+            "delete" => Command::Delete(Delete::parse_frames(&mut parse)?),
             _ => todo!(),
         };
 
@@ -52,16 +57,17 @@ impl Command {
         use Command::*;
 
         match self {
+            Ping(cmd) => cmd.apply(conn).await,
             Get(cmd) => cmd.apply(conn, db).await,
             Set(cmd) => cmd.apply(conn, db).await,
-            Ping(cmd) => cmd.apply(conn).await,
+            Delete(cmd) => cmd.apply(conn, db).await,
         }
     }
 }
 
 impl Ping {
-    pub fn new(msg: Option<Bytes>) -> Ping {
-        Ping { msg }
+    pub fn new() -> Ping {
+        Ping {}
     }
 
     pub fn into_frame(self) -> Frame {
@@ -74,17 +80,14 @@ impl Ping {
 
     pub fn parse_frames(parse: &mut Parse) -> Result<Ping, crate::Error> {
         match parse.next_bytes() {
-            Ok(msg) => Ok(Ping::new(Some(msg))),
+            Ok(_) => Ok(Ping::new()),
             Err(ParseError::EndOfStream) => Ok(Ping::default()),
             Err(e) => Err(e.into()),
         }
     }
 
     pub async fn apply(self, conn: &mut Connection) -> Result<(), crate::Error> {
-        let response = match self.msg {
-            None => Frame::Simple("PONG".to_string()),
-            Some(msg) => Frame::Bulk(msg),
-        };
+        let response = Frame::Simple("PONG".to_string());
 
         conn.write_frame(&response).await?;
 
@@ -118,11 +121,17 @@ impl Get {
         let resp_frame = match db.get(self.key.as_str())? {
             Some(record) => {
                 let val_bytes = record.get_val_bytes();
-                Frame::Bulk(val_bytes)
+
+                // TODO: Frame::Error(INTERNAL_ERROR)
+                let err_resp = Frame::Simple("Internal error".to_string());
+
+                val_bytes.map_or(err_resp, Frame::Bulk)
             }
             None => {
-                // TODO: write Frame::Error(NOT_FOUND)
-                Frame::Simple("Not found".to_string())
+                // TODO: Frame::Error(NOT_FOUND)
+                // Frame::Simple("Not found".to_string())
+
+                Frame::Error("not found 21".to_string())
             }
         };
 
@@ -160,6 +169,38 @@ impl Set {
 
     pub async fn apply(self, conn: &mut Connection, db: &Db) -> Result<(), crate::Error> {
         db.set(self.key, self.value)?;
+
+        let response = Frame::Simple("OK".to_string());
+        conn.write_frame(&response).await?;
+
+        Ok(())
+    }
+}
+
+impl Delete {
+    pub fn new(key: impl ToString) -> Delete {
+        Delete {
+            key: key.to_string(),
+        }
+    }
+
+    pub fn into_frame(self) -> Frame {
+        let mut frame = Frame::array();
+
+        frame.push_string("delete".to_string());
+        frame.push_string(self.key);
+
+        frame
+    }
+
+    pub(crate) fn parse_frames(parse: &mut Parse) -> Result<Delete, crate::Error> {
+        let key = parse.next_string()?;
+
+        Ok(Delete { key })
+    }
+
+    pub async fn apply(self, conn: &mut Connection, db: &Db) -> Result<(), crate::Error> {
+        db.delete(self.key)?;
 
         let response = Frame::Simple("OK".to_string());
         conn.write_frame(&response).await?;

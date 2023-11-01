@@ -1,6 +1,1 @@
-{"key":"abc","value":"abc val 1","timestamp":1698564948}
-{"key":"foo","value":"foo val","timestamp":1698564966}
-{"key":"james","value":"james val","timestamp":1698564973}
-{"key":"ricardo","value":"ricardo value 01","timestamp":1698634606}
-{"key":"cats_number","value":"many","timestamp":1698634942}
-{"key":"dogs","value":"10","timestamp":1698639758}
+{"key":"pictures","value":"100","timestamp":1698799563,"deleted":false}

@@ -41,6 +41,11 @@ impl Frame {
 
     pub fn check(src: &mut Cursor<&[u8]>) -> Result<(), Error> {
         match get_descriptor(src)? {
+            // error
+            b'-' => {
+                get_line(src)?;
+                Ok(())
+            }
             // simple
             b'+' => {
                 get_line(src)?;
@@ -68,10 +73,16 @@ impl Frame {
     }
 
     // PING: "*  __  1\r\n  __  $4\r\n  __  ping\r\n"
-    // SET: "*  __  3\r\n  __  +set\r\n  __  +hello\r\n  __  $5\r\  __  nworld\r\n"
+    // SET: "*  __  3\r\n  __  +set\r\n  __  +hello\r\n  __  $5\r\n  __  world\r\n"
 
     pub fn parse(src: &mut Cursor<&[u8]>) -> Result<Frame, Error> {
         match get_descriptor(src)? {
+            b'-' => {
+                let bytes_vec = get_line(src)?.to_vec();
+                let string = String::from_utf8(bytes_vec)?;
+
+                Ok(Frame::Error(string))
+            }
             b'+' => {
                 let bytes_vec = get_line(src)?.to_vec();
                 let string = String::from_utf8(bytes_vec)?;
@@ -117,10 +128,12 @@ fn get_decimal(src: &mut Cursor<&[u8]>) -> Result<u64, Error> {
 }
 
 /// A "line" refers to a sequence of bytes that is terminated by a carriage return
-/// (\r, ASCII 13) followed by a line feed (\n, ASCII 10). This is a common way to denote
-/// the end of a line in many text-based protocols and file formats, especially on Unix-like systems.
 fn get_line<'a>(src: &mut Cursor<&'a [u8]>) -> Result<&'a [u8], Error> {
     let start = src.position() as usize;
+
+    // get_ref() method returns a reference to the underlying data of the Cursor
+
+    // get the length of this underlying byte slice
     let end = src.get_ref().len() - 1;
 
     for i in start..end {

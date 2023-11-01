@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use tokio::net::{TcpStream, ToSocketAddrs};
 
-use crate::cmd::{Get, Ping, Set};
+use crate::cmd::{Delete, Get, Ping, Set};
 use crate::connection::Connection;
 use crate::frame::Frame;
 
@@ -18,7 +18,7 @@ impl Client {
     }
 
     pub async fn ping(&mut self) -> Result<String, crate::Error> {
-        let frame = Ping::new(None).into_frame();
+        let frame = Ping::new().into_frame();
         self.connection.write_frame(&frame).await?;
 
         if let Frame::Simple(string) = self.read_response().await? {
@@ -41,6 +41,9 @@ impl Client {
             Frame::Simple(string) => {
                 return Ok(string);
             }
+            Frame::Error(string) => {
+                return Ok(format!("Error: {}", string));
+            }
             _ => {
                 todo!()
             }
@@ -49,6 +52,17 @@ impl Client {
 
     pub async fn set(&mut self, key: &str, value: Bytes) -> Result<String, crate::Error> {
         let frame = Set::new(key, value).into_frame();
+        self.connection.write_frame(&frame).await?;
+
+        if let Frame::Simple(string) = self.read_response().await? {
+            return Ok(string);
+        }
+
+        Err("Internal error".into())
+    }
+
+    pub async fn delete(&mut self, key: &str) -> Result<String, crate::Error> {
+        let frame = Delete::new(key).into_frame();
         self.connection.write_frame(&frame).await?;
 
         if let Frame::Simple(string) = self.read_response().await? {

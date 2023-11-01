@@ -68,11 +68,11 @@ impl Listener {
     }
 
     /*
-        TODO: separate method makes sence with backing off and retrying
+        TODO: separate method makes sense with backing off and retrying
     */
     async fn accept(&mut self) -> Result<TcpStream, crate::Error> {
         match self.listener.accept().await {
-            Ok((tcp_stream, _)) => return Ok(tcp_stream),
+            Ok((tcp_stream, _)) => Ok(tcp_stream),
             //
             // TODO: how does this conversion work?
             Err(err) => return Err(err.into()),

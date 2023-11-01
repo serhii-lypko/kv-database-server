@@ -2,7 +2,7 @@ use std::io::{self, Cursor};
 
 use bytes::{Buf, BytesMut};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpStream;
 
 use crate::frame::{self, Frame};
 
@@ -91,6 +91,12 @@ impl Connection {
             }
             Frame::Simple(string) => {
                 self.stream.write_u8(b'+').await?;
+                self.stream.write_all(string.as_bytes()).await?;
+                self.stream.write_all(b"\r\n").await?;
+            }
+            // TODO: error variants as enum?
+            Frame::Error(string) => {
+                self.stream.write_u8(b'-').await?;
                 self.stream.write_all(string.as_bytes()).await?;
                 self.stream.write_all(b"\r\n").await?;
             }

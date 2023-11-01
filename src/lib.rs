@@ -25,7 +25,7 @@ pub const DEFAULT_PORT: u16 = 6379;
     transport only strings?
 
 
-    Version 0.1.0
+    Version 1.1.0
     - Append and read KV from the Flat File ✅
         + Do this with base CLI commands: SET and GET ✅
     - Basic TCP server ✅
@@ -40,19 +40,24 @@ pub const DEFAULT_PORT: u16 = 6379;
     - CLI commands integration with clap crate ✅
     - Delete command
     - Implement simple compaction (without segments)
+
+
+    Version 1.1.1
     - Simple tests
     - Db index as singletone? -> research needed
     - Structs & implementations ordering and consistency
+    - Figure out debug and tracing!!
 
 
-    Version 0.2.0
+    Version 1.2.0
     - Concurrent read-write? -> research needed
     - Segment file compaction
+    - Scan?
     - More advanced tests
     - Error handling with anyhow?
 
 
-    Version 0.3.0
+    Version 1.3.0
     - Timeout Mechanism for connection keep alive
     - Gracefull server shutdown
 */

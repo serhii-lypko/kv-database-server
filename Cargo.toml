@@ -19,3 +19,4 @@ tokio = { version = "1", features = ["full"] }
 bytes = "1"
 clap = { version = "3.1.18", features = ["derive"] }
 atoi = "0.3.2"
+async-trait = "0.1.74"

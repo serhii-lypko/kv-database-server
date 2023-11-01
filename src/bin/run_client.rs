@@ -30,6 +30,9 @@ enum Command {
         #[clap(parse(from_str = bytes_from_str))]
         value: Bytes,
     },
+    Delete {
+        key: String,
+    },
 }
 
 fn bytes_from_str(src: &str) -> Bytes {
@@ -46,12 +49,16 @@ async fn main() -> Result<(), Error> {
             println!("{}", ping_res);
         }
         Command::Get { key } => {
-            let get_res: String = client.get(key.as_str()).await?;
+            let get_res = client.get(key.as_str()).await?;
             println!("GET {}: {}", key, get_res);
         }
         Command::Set { key, value } => {
             let set_res = client.set(key.as_str(), value).await?;
             println!("SET {}", set_res);
+        }
+        Command::Delete { key } => {
+            let delete_res = client.delete(key.as_str()).await?;
+            println!("DELETE {}", delete_res);
         }
     }
 

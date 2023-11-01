@@ -9,7 +9,7 @@ use std::vec;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
-// TODO: have index as a singletone?
+// TODO: have index as a singleton?
 pub struct DbHolder {
     db: Db,
 }
@@ -35,8 +35,9 @@ pub struct IndexRecord {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FileRecord {
     key: String,
-    value: String, // TODO: how to represent other formats? Bytes?
+    value: Option<String>, // TODO: how to represent other formats? Bytes?
     timestamp: u64,
+    deleted: bool,
 }
 
 impl DbHolder {
@@ -81,13 +82,17 @@ impl Db {
 
             let record: FileRecord = serde_json::from_str(&line)?;
 
-            let index_record = IndexRecord {
-                offset,
-                len,
-                timestamp: record.timestamp,
-            };
+            if record.deleted {
+                hydrated_index.remove(&record.key);
+            } else {
+                let index_record = IndexRecord {
+                    offset,
+                    len,
+                    timestamp: record.timestamp,
+                };
 
-            hydrated_index.insert(record.key, index_record);
+                hydrated_index.insert(record.key, index_record);
+            }
 
             offset += len;
         }
@@ -114,6 +119,10 @@ impl Db {
             let string = String::from_utf8(buffer);
 
             let record: FileRecord = serde_json::from_str(&string.unwrap().as_str()).unwrap();
+
+            if record.deleted {
+                return Ok(None);
+            }
 
             Ok(Some(record))
         } else {
@@ -151,12 +160,25 @@ impl Db {
 
         Ok(())
     }
+
+    /*
+        Deleting algorithm
+
+        1. Append tombstone
+        2. Delete key from index
+        3. Hydration: delete key if found as tombstone
+        4. ⭐️ Compaction: remove all records before tombstone
+    */
+    pub fn delete(&self, key: String) -> Result<(), crate::Error> {
+        println!("Gonn delete record on DB level");
+
+        Ok(())
+    }
 }
 
 impl FileRecord {
-    pub fn get_val_bytes(&self) -> Bytes {
-        let val = self.value.clone();
-        Bytes::from(val.into_bytes())
+    pub fn get_val_bytes(&self) -> Option<Bytes> {
+        self.value.clone().map(|val| Bytes::from(val.into_bytes()))
     }
 
     pub fn prepare_for_writing(
@@ -168,8 +190,9 @@ impl FileRecord {
 
         let record = FileRecord {
             key,
-            value: value_string,
+            value: Some(value_string),
             timestamp,
+            deleted: false,
         };
 
         let serialized = serde_json::to_string(&record)?;
