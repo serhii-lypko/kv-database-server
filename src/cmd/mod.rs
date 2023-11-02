@@ -193,10 +193,12 @@ impl Delete {
     }
 
     pub async fn apply(self, conn: &mut Connection, db: &Db) -> Result<(), crate::Error> {
-        db.delete(self.key)?;
+        let resp_frame = match db.delete(self.key)? {
+            Some(_) => Frame::Simple("OK".to_string()),
+            None => Frame::Error(FrameErrorKind::NotFound),
+        };
 
-        let response = Frame::Simple("OK".to_string());
-        conn.write_frame(&response).await?;
+        conn.write_frame(&resp_frame).await?;
 
         Ok(())
     }

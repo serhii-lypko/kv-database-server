@@ -3,7 +3,6 @@ use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::io::{BufReader, Seek, SeekFrom, Write};
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::vec;
 
 use bytes::Bytes;
@@ -29,7 +28,6 @@ struct Index {
 pub struct IndexRecord {
     offset: u64,
     len: u64,
-    timestamp: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -37,7 +35,7 @@ pub struct FileRecord {
     key: String,
     value: Option<String>, // TODO: how to represent other formats? Bytes?
     timestamp: u64,
-    deleted: bool,
+    is_tombstone: bool,
 }
 
 impl DbHolder {
@@ -82,14 +80,10 @@ impl Db {
 
             let record: FileRecord = serde_json::from_str(&line)?;
 
-            if record.deleted {
+            if record.is_tombstone {
                 hydrated_index.remove(&record.key);
             } else {
-                let index_record = IndexRecord {
-                    offset,
-                    len,
-                    timestamp: record.timestamp,
-                };
+                let index_record = IndexRecord { offset, len };
 
                 hydrated_index.insert(record.key, index_record);
             }
@@ -104,10 +98,30 @@ impl Db {
         Ok(Some(hydrated_index))
     }
 
+    fn insert(&self, record: FileRecord) -> Result<(), crate::Error> {
+        let mut file = OpenOptions::new().append(true).open(&self.filename)?;
+
+        let serialized_rec = record.serialize_with_escaping()?;
+
+        let offset = file.metadata()?.len();
+        let len = serialized_rec.len() as u64;
+
+        let mut index_state_lock = self.index.lock().unwrap();
+
+        index_state_lock
+            .records
+            .insert(record.key, IndexRecord { offset, len });
+
+        file.write_all(serialized_rec.as_bytes())?;
+
+        drop(index_state_lock);
+
+        Ok(())
+    }
+
     pub fn get(&self, key: &str) -> Result<Option<FileRecord>, crate::Error> {
         let index_state = self.index.lock().unwrap();
 
-        // TODO: how to handle record not found? what kind of error to return?
         if let Some(record_info) = index_state.records.get(key) {
             let mut file = File::open(&self.filename)?;
 
@@ -120,7 +134,7 @@ impl Db {
 
             let record: FileRecord = serde_json::from_str(&string.unwrap().as_str()).unwrap();
 
-            if record.deleted {
+            if record.is_tombstone {
                 return Ok(None);
             }
 
@@ -131,71 +145,60 @@ impl Db {
     }
 
     pub fn set(&self, key: String, value: Bytes) -> Result<(), crate::Error> {
-        let mut file = OpenOptions::new().append(true).open(&self.filename)?;
+        let value = String::from_utf8(value.to_vec()).ok();
+
+        let record = FileRecord::new(key.clone(), value, false);
+
+        self.insert(record)?;
+
+        Ok(())
+    }
+
+    // TODO: how to prevent multiple delete records append?
+    pub fn delete(&self, key: String) -> Result<Option<()>, crate::Error> {
+        let index_state_lock = self.index.lock().unwrap();
+        let index_record = index_state_lock.records.get(key.as_str());
+
+        if index_record.is_none() {
+            return Ok(None);
+        }
+
+        // TODO: how does it work?
+        // Release the mutex before notifying the background task. This helps
+        // reduce contention by avoiding the background task waking up only to
+        // be unable to acquire the mutex due to this function still holding it.
+        drop(index_state_lock);
+
+        let record_to_delete = FileRecord::new(key, None, true);
+
+        self.insert(record_to_delete)?;
+
+        Ok(Some(()))
+    }
+}
+
+impl FileRecord {
+    pub fn new(key: String, value: Option<String>, is_tombstone: bool) -> FileRecord {
+        use std::time::{SystemTime, UNIX_EPOCH};
 
         let now = SystemTime::now();
         let since_the_epoch = now.duration_since(UNIX_EPOCH).unwrap();
         let timestamp: u64 = since_the_epoch.as_secs();
 
-        let serialized_rec_with_escapring =
-            FileRecord::prepare_for_writing(key.clone(), value, timestamp)?;
-
-        let offset = file.metadata()?.len();
-        let len = serialized_rec_with_escapring.len() as u64;
-
-        let mut index_state = self.index.lock().unwrap();
-
-        index_state.records.insert(
+        FileRecord {
             key,
-            IndexRecord {
-                offset,
-                len,
-                timestamp,
-            },
-        );
-
-        file.write_all(serialized_rec_with_escapring.as_bytes())?;
-
-        drop(index_state);
-
-        Ok(())
+            value,
+            timestamp,
+            is_tombstone,
+        }
     }
 
-    /*
-        Deleting algorithm
-
-        1. Append tombstone
-        2. Delete key from index
-        3. Hydration: delete key if found as tombstone
-        4. ⭐️ Compaction: remove all records before tombstone
-    */
-    pub fn delete(&self, key: String) -> Result<(), crate::Error> {
-        println!("Gonn delete record on DB level");
-
-        Ok(())
-    }
-}
-
-impl FileRecord {
     pub fn get_val_bytes(&self) -> Option<Bytes> {
         self.value.clone().map(|val| Bytes::from(val.into_bytes()))
     }
 
-    pub fn prepare_for_writing(
-        key: String,
-        value: Bytes,
-        timestamp: u64,
-    ) -> Result<String, crate::Error> {
-        let value_string = String::from_utf8(value.to_vec())?;
-
-        let record = FileRecord {
-            key,
-            value: Some(value_string),
-            timestamp,
-            deleted: false,
-        };
-
-        let serialized = serde_json::to_string(&record)?;
+    pub fn serialize_with_escaping(&self) -> Result<String, crate::Error> {
+        let serialized = serde_json::to_string(&self)?;
         let serialized_with_newline = format!("{}\n", serialized);
 
         Ok(serialized_with_newline)

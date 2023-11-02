@@ -39,7 +39,8 @@ pub const DEFAULT_PORT: u16 = 6379;
     - Write response to TCP stream; handle not found for GET ✅
     - CLI commands integration with clap crate ✅
     - Delete command
-    - Implement simple compaction (without segments)
+    - Implement simple compaction (without segments) including deleted records cleanup
+    - README
 
 
     Version 1.1.1

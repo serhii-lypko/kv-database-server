@@ -41,13 +41,11 @@ impl Client {
             Frame::Simple(string) => {
                 return Ok(string);
             }
-            Frame::Error(string) => {
-                return Ok(format!("Error: {}", string));
+            Frame::Error(error_kind) => {
+                return Ok(format!("Error: {}", error_kind));
             }
-            _ => {
-                todo!()
-            }
-        };
+            _ => Err("Internal error".into()),
+        }
     }
 
     pub async fn set(&mut self, key: &str, value: Bytes) -> Result<String, crate::Error> {
@@ -65,11 +63,11 @@ impl Client {
         let frame = Delete::new(key).into_frame();
         self.connection.write_frame(&frame).await?;
 
-        if let Frame::Simple(string) = self.read_response().await? {
-            return Ok(string);
+        match self.read_response().await? {
+            Frame::Simple(string) => Ok(string),
+            Frame::Error(error_kind) => Ok(format!("Error: {}", error_kind)),
+            _ => Err("Internal error".into()),
         }
-
-        Err("Internal error".into())
     }
 
     async fn read_response(&mut self) -> Result<Frame, crate::Error> {

@@ -1,1 +1,9 @@
-{"key":"pictures","value":"100","timestamp":1698799563,"deleted":false}
+{"key":"cats","value":"100","timestamp":1698889635,"is_tombstone":false}
+{"key":"dogs","value":"12","timestamp":1698889663,"is_tombstone":false}
+{"key":"cats","value":"32","timestamp":1698889668,"is_tombstone":false}
+{"key":"rabbits","value":"0","timestamp":1698891098,"is_tombstone":false}
+{"key":"cats","value":"0","timestamp":1698891113,"is_tombstone":false}
+{"key":"horses","value":"7","timestamp":1698891268,"is_tombstone":false}
+{"key":"foo","value":"1000","timestamp":1698891839,"is_tombstone":false}
+{"key":"dogs","value":null,"timestamp":1698891901,"is_tombstone":true}
+{"key":"dogs","value":null,"timestamp":1698891911,"is_tombstone":true}
