@@ -98,10 +98,23 @@ impl Db {
         Ok(Some(hydrated_index))
     }
 
-    fn insert(&self, record: FileRecord) -> Result<(), crate::Error> {
+    fn retrieve(&self, index_record: &IndexRecord) -> Result<FileRecord, crate::Error> {
+        let mut file = File::open(&self.filename)?;
+
+        let mut buffer = vec![0; index_record.len as usize];
+
+        file.seek(SeekFrom::Start(index_record.offset))?;
+        file.read_exact(&mut buffer)?;
+
+        let record: FileRecord = serde_json::from_slice(&buffer)?;
+
+        Ok(record)
+    }
+
+    fn insert(&self, file_record: FileRecord) -> Result<(), crate::Error> {
         let mut file = OpenOptions::new().append(true).open(&self.filename)?;
 
-        let serialized_rec = record.serialize_with_escaping()?;
+        let serialized_rec = file_record.serialize_with_escaping()?;
 
         let offset = file.metadata()?.len();
         let len = serialized_rec.len() as u64;
@@ -110,7 +123,7 @@ impl Db {
 
         index_state_lock
             .records
-            .insert(record.key, IndexRecord { offset, len });
+            .insert(file_record.key, IndexRecord { offset, len });
 
         file.write_all(serialized_rec.as_bytes())?;
 
@@ -122,23 +135,14 @@ impl Db {
     pub fn get(&self, key: &str) -> Result<Option<FileRecord>, crate::Error> {
         let index_state = self.index.lock().unwrap();
 
-        if let Some(record_info) = index_state.records.get(key) {
-            let mut file = File::open(&self.filename)?;
+        if let Some(index_record) = index_state.records.get(key) {
+            let file_record = self.retrieve(index_record)?;
 
-            file.seek(SeekFrom::Start(record_info.offset.clone()))?;
-
-            let mut buffer = vec![0; record_info.len as usize];
-            file.read_exact(&mut buffer)?;
-
-            let string = String::from_utf8(buffer);
-
-            let record: FileRecord = serde_json::from_str(&string.unwrap().as_str()).unwrap();
-
-            if record.is_tombstone {
+            if file_record.is_tombstone {
                 return Ok(None);
             }
 
-            Ok(Some(record))
+            Ok(Some(file_record))
         } else {
             Ok(None)
         }
@@ -154,7 +158,6 @@ impl Db {
         Ok(())
     }
 
-    // TODO: how to prevent multiple delete records append?
     pub fn delete(&self, key: String) -> Result<Option<()>, crate::Error> {
         let index_state_lock = self.index.lock().unwrap();
         let index_record = index_state_lock.records.get(key.as_str());
@@ -163,15 +166,11 @@ impl Db {
             return Ok(None);
         }
 
-        // TODO: how does it work?
-        // Release the mutex before notifying the background task. This helps
-        // reduce contention by avoiding the background task waking up only to
-        // be unable to acquire the mutex due to this function still holding it.
         drop(index_state_lock);
 
-        let record_to_delete = FileRecord::new(key, None, true);
+        let tombstone_record = FileRecord::new(key, None, true);
 
-        self.insert(record_to_delete)?;
+        self.insert(tombstone_record)?;
 
         Ok(Some(()))
     }

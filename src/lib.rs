@@ -38,7 +38,7 @@ pub const DEFAULT_PORT: u16 = 6379;
         + Apply GET on database via index ✅
     - Write response to TCP stream; handle not found for GET ✅
     - CLI commands integration with clap crate ✅
-    - Delete command
+    - Delete command ✅
     - Implement simple compaction (without segments) including deleted records cleanup
     - README
 
