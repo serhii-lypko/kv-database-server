@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 // TODO: have index as a singleton?
 pub struct DbHolder {
-    db: Db,
+    pub db: Db,
 }
 
 #[derive(Clone)]
@@ -26,7 +26,7 @@ struct Index {
     records: HashMap<String, ValueMetadata>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ValueMetadata {
     offset: u64,
     len: u64,
@@ -69,12 +69,38 @@ impl Db {
     }
 
     pub fn run_compaction(&self) -> Result<(), crate::Error> {
-        let mut tmp_index: HashMap<String, usize> = HashMap::new();
+        // The compaction algorithm is straightforward:
+        // take in-memory index which represents the most recent state, erase storage file content
+        // and then write that index data into file.
+        // No doubt it's a crude and fragile solution which has many drawbacks (like complete data loss in case of
+        // compaction process interuption), but it works for arudimentary database, created for educational purposes.
 
-        // let index_state = self.index.lock().unwrap();
-        // dbg!(&index_state);
+        let index_state = self.index.lock().unwrap();
 
-        Ok(())
+        // TODO: is it possible to avoid clonning records? Arc?
+        let records_iter = index_state.records.clone().into_iter();
+
+        drop(index_state);
+
+        let records: Result<Vec<FileRecord>, crate::Error> = records_iter
+            .map(|(_, value_metadata)| self.retrieve(&value_metadata))
+            .collect();
+
+        match records {
+            Ok(records) => {
+                let file = OpenOptions::new()
+                    .write(true)
+                    .open(&self.storage_filename)?;
+                file.set_len(0)?;
+
+                for record in records {
+                    self.insert(record)?;
+                }
+
+                Ok(())
+            }
+            Err(err) => Err(err),
+        }
     }
 
     fn rehydrate_index_from_disk(
@@ -113,12 +139,12 @@ impl Db {
         Ok(Some(hydrated_index))
     }
 
-    fn retrieve(&self, index_record: &ValueMetadata) -> Result<FileRecord, crate::Error> {
+    fn retrieve(&self, value_metadata: &ValueMetadata) -> Result<FileRecord, crate::Error> {
         let mut file = File::open(&self.storage_filename)?;
 
-        let mut buffer = vec![0; index_record.len as usize];
+        let mut buffer = vec![0; value_metadata.len as usize];
 
-        file.seek(SeekFrom::Start(index_record.offset))?;
+        file.seek(SeekFrom::Start(value_metadata.offset))?;
         file.read_exact(&mut buffer)?;
 
         let record: FileRecord = serde_json::from_slice(&buffer)?;

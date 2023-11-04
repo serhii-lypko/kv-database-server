@@ -10,12 +10,7 @@ pub type Error = Box<dyn std::error::Error>;
 pub const DEFAULT_PORT: u16 = 6379;
 
 /*
-    TODO 1.
-    Try TDD
-    https://www.tedinski.com/2019/03/11/fast-feedback-from-tests.html
-
-    TODO 2.
-    Try debugging with breakpoints
+    TODO: logger
 */
 
 /*
@@ -39,7 +34,7 @@ pub const DEFAULT_PORT: u16 = 6379;
     - Write response to TCP stream; handle not found for GET ✅
     - CLI commands integration with clap crate ✅
     - Delete command ✅
-    - Implement simple compaction (without segments) including deleted records cleanup
+    - Implement simple compaction (without segments) including deleted records cleanup ✅
     - Tests for Db module
     - README
 

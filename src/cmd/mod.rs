@@ -11,6 +11,7 @@ use parse::{Parse, ParseError};
 pub enum Command {
     Ping(Ping),
     Get(Get),
+    // TODO: Scan?
     Set(Set),
     Delete(Delete),
 }

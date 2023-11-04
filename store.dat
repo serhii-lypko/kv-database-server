@@ -1,5 +1,1 @@
-{"key":"cats","value":"5","timestamp":1699070357,"is_tombstone":false}
-{"key":"dogs","value":"3","timestamp":1699070362,"is_tombstone":false}
-{"key":"cats","value":null,"timestamp":1699070373,"is_tombstone":true}
-{"key":"dogs","value":null,"timestamp":1699070420,"is_tombstone":true}
-{"key":"apples","value":"many","timestamp":1699070436,"is_tombstone":false}
+{"key":"dogs","value":"3","timestamp":1699084615,"is_tombstone":false}
