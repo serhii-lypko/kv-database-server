@@ -1,6 +1,5 @@
-{"key":"dogs","value":"10","timestamp":1698978919,"is_tombstone":false}
-{"key":"cats","value":"5","timestamp":1698978926,"is_tombstone":false}
-{"key":"rabbits","value":"0","timestamp":1698978932,"is_tombstone":false}
-{"key":"cats","value":"6","timestamp":1698979686,"is_tombstone":false}
-{"key":"cats","value":null,"timestamp":1698981430,"is_tombstone":true}
-{"key":"cats","value":null,"timestamp":1698981432,"is_tombstone":true}
+{"key":"cats","value":"5","timestamp":1699070357,"is_tombstone":false}
+{"key":"dogs","value":"3","timestamp":1699070362,"is_tombstone":false}
+{"key":"cats","value":null,"timestamp":1699070373,"is_tombstone":true}
+{"key":"dogs","value":null,"timestamp":1699070420,"is_tombstone":true}
+{"key":"apples","value":"many","timestamp":1699070436,"is_tombstone":false}

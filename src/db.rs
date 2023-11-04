@@ -8,6 +8,8 @@ use std::vec;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
+// TODO: tests!
+
 // TODO: have index as a singleton?
 pub struct DbHolder {
     db: Db,
@@ -16,16 +18,16 @@ pub struct DbHolder {
 #[derive(Clone)]
 pub struct Db {
     index: Arc<Mutex<Index>>,
-    filename: String,
+    storage_filename: String,
 }
 
 #[derive(Debug)]
 struct Index {
-    records: HashMap<String, IndexRecord>,
+    records: HashMap<String, ValueMetadata>,
 }
 
 #[derive(Debug)]
-pub struct IndexRecord {
+pub struct ValueMetadata {
     offset: u64,
     len: u64,
 }
@@ -52,31 +54,32 @@ impl DbHolder {
     }
 }
 
-// TODO: tests!
-
 impl Db {
-    pub fn new(filename: impl Into<String>) -> Db {
-        let filename = filename.into();
+    pub fn new(storage_filename: impl Into<String>) -> Db {
+        let storage_filename = storage_filename.into();
 
-        let index = Db::rehydrate_index_from_disk(filename.as_str())
+        let index = Db::rehydrate_index_from_disk(storage_filename.as_str())
             .unwrap_or(None)
             .unwrap_or_else(|| HashMap::new());
 
         Db {
             index: Arc::new(Mutex::new(Index { records: index })),
-            filename,
+            storage_filename,
         }
     }
 
     pub fn run_compaction(&self) -> Result<(), crate::Error> {
-        // TODO
+        let mut tmp_index: HashMap<String, usize> = HashMap::new();
+
+        // let index_state = self.index.lock().unwrap();
+        // dbg!(&index_state);
 
         Ok(())
     }
 
     fn rehydrate_index_from_disk(
         filename: &str,
-    ) -> Result<Option<HashMap<String, IndexRecord>>, crate::Error> {
+    ) -> Result<Option<HashMap<String, ValueMetadata>>, crate::Error> {
         let file = File::open(&filename)?;
         let reader = BufReader::new(file);
 
@@ -95,7 +98,7 @@ impl Db {
             if record.is_tombstone {
                 hydrated_index.remove(&record.key);
             } else {
-                let index_record = IndexRecord { offset, len };
+                let index_record = ValueMetadata { offset, len };
 
                 hydrated_index.insert(record.key, index_record);
             }
@@ -110,8 +113,8 @@ impl Db {
         Ok(Some(hydrated_index))
     }
 
-    fn retrieve(&self, index_record: &IndexRecord) -> Result<FileRecord, crate::Error> {
-        let mut file = File::open(&self.filename)?;
+    fn retrieve(&self, index_record: &ValueMetadata) -> Result<FileRecord, crate::Error> {
+        let mut file = File::open(&self.storage_filename)?;
 
         let mut buffer = vec![0; index_record.len as usize];
 
@@ -124,22 +127,26 @@ impl Db {
     }
 
     fn insert(&self, file_record: FileRecord) -> Result<(), crate::Error> {
-        let mut file = OpenOptions::new().append(true).open(&self.filename)?;
+        let mut file = OpenOptions::new()
+            .append(true)
+            .open(&self.storage_filename)?;
 
         let serialized_rec = file_record.serialize_with_escaping()?;
 
         let offset = file.metadata()?.len();
         let len = serialized_rec.len() as u64;
 
-        let mut index_state_lock = self.index.lock().unwrap();
-
-        index_state_lock
-            .records
-            .insert(file_record.key, IndexRecord { offset, len });
-
         file.write_all(serialized_rec.as_bytes())?;
 
-        drop(index_state_lock);
+        if !file_record.is_tombstone {
+            let mut index_state_lock = self.index.lock().unwrap();
+
+            index_state_lock
+                .records
+                .insert(file_record.key, ValueMetadata { offset, len });
+
+            drop(index_state_lock);
+        }
 
         Ok(())
     }
@@ -171,12 +178,14 @@ impl Db {
     }
 
     pub fn delete(&self, key: String) -> Result<Option<()>, crate::Error> {
-        let index_state_lock = self.index.lock().unwrap();
+        let mut index_state_lock = self.index.lock().unwrap();
         let index_record = index_state_lock.records.get(key.as_str());
 
         if index_record.is_none() {
             return Ok(None);
         }
+
+        index_state_lock.records.remove(&key);
 
         drop(index_state_lock);
 
