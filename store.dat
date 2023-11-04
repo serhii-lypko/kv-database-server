@@ -2,3 +2,5 @@
 {"key":"cats","value":"5","timestamp":1698978926,"is_tombstone":false}
 {"key":"rabbits","value":"0","timestamp":1698978932,"is_tombstone":false}
 {"key":"cats","value":"6","timestamp":1698979686,"is_tombstone":false}
+{"key":"cats","value":null,"timestamp":1698981430,"is_tombstone":true}
+{"key":"cats","value":null,"timestamp":1698981432,"is_tombstone":true}

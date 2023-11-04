@@ -16,7 +16,7 @@ pub struct DbHolder {
 #[derive(Clone)]
 pub struct Db {
     index: Arc<Mutex<Index>>,
-    filename: &'static str,
+    filename: String,
 }
 
 #[derive(Debug)]
@@ -40,7 +40,11 @@ pub struct FileRecord {
 
 impl DbHolder {
     pub fn new() -> DbHolder {
-        DbHolder { db: Db::new() }
+        let filename = "store.dat".to_string();
+
+        DbHolder {
+            db: Db::new(filename),
+        }
     }
 
     pub fn db(&self) -> Db {
@@ -48,11 +52,13 @@ impl DbHolder {
     }
 }
 
-impl Db {
-    pub fn new() -> Db {
-        let filename = "store.dat";
+// TODO: tests!
 
-        let index = Db::rehydrate_index_from_disk(filename)
+impl Db {
+    pub fn new(filename: impl Into<String>) -> Db {
+        let filename = filename.into();
+
+        let index = Db::rehydrate_index_from_disk(filename.as_str())
             .unwrap_or(None)
             .unwrap_or_else(|| HashMap::new());
 
@@ -60,6 +66,12 @@ impl Db {
             index: Arc::new(Mutex::new(Index { records: index })),
             filename,
         }
+    }
+
+    pub fn run_compaction(&self) -> Result<(), crate::Error> {
+        // TODO
+
+        Ok(())
     }
 
     fn rehydrate_index_from_disk(
