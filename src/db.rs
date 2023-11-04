@@ -8,8 +8,6 @@ use std::vec;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
-// TODO: tests!
-
 // TODO: have index as a singleton?
 pub struct DbHolder {
     pub db: Db,
@@ -248,5 +246,50 @@ impl FileRecord {
         let serialized_with_newline = format!("{}\n", serialized);
 
         Ok(serialized_with_newline)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn setup_db() -> Result<Db, crate::Error> {
+        let test_filename = "tests_store.dat";
+
+        let file = OpenOptions::new().write(true).open(test_filename)?;
+        file.set_len(0)?;
+
+        Ok(Db::new(test_filename))
+    }
+
+    #[test]
+    fn test_insertion() -> Result<(), crate::Error> {
+        let db = setup_db()?;
+
+        let key = "test_key".to_string();
+        let value = Bytes::from("test_value".to_string());
+
+        db.set(key.clone(), value)?;
+
+        let retrieved_record = db.get(&key)?.unwrap();
+        assert_eq!(retrieved_record.key, key);
+        assert_eq!(retrieved_record.value, Some("test_value".to_string()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_retrieval() -> Result<(), crate::Error> {
+        todo!();
+    }
+
+    #[test]
+    fn test_deletion() -> Result<(), crate::Error> {
+        todo!();
+    }
+
+    #[test]
+    fn test_compaction() -> Result<(), crate::Error> {
+        todo!();
     }
 }
